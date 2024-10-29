@@ -22,17 +22,7 @@ class Codec:
         level_traversed = 0
         level_nodes = 0
         while level:
-            node = level.pop(0)
-            if level_traversed < level_total:
-                if node is None:
-                    level += [None, None]
-                    level_serial += "x"
-                else:
-                    level += [node.left, node.right]
-                    level_serial += str(node.val)
-                    level_nodes += 1
-                level_traversed += 1
-            else:
+            if level_traversed >= level_total:
                 if level_nodes <= 0: # traversed the whole level but did not encounter any nodes => throwaway level serial and return
                     break
                 else:
@@ -42,6 +32,17 @@ class Codec:
                     level_traversed = 0
                     level_nodes = 0
                     level_total *= 2
+
+            node = level.pop(0)
+            
+            if node is None:
+                level += [None, None]
+                level_serial += "x,"
+            else:
+                level += [node.left, node.right]
+                level_serial += f"{node.val},"
+                level_nodes += 1
+            level_traversed += 1
         return serial
     
 
@@ -71,11 +72,30 @@ class Codec:
 
             left_child = None if left_child_raw == "x" else TreeNode(int(left_child_raw))
             right_child = None if right_child_raw == "x" else TreeNode(int(right_child_raw))
+            i_to_node[2 * i + 1] = left_child
+            i_to_node[2 * i + 2] = right_child
 
             node.left = left_child
             node.right = right_child
         return i_to_node[0]
 
+
+if __name__ == "__main__":
+    root = TreeNode(1)
+    left = TreeNode(2)
+    right = TreeNode(3)
+    right_right = TreeNode(4)
+    left_right = TreeNode(5)
+    root.left = left
+    root.left.right = left_right
+    root.right = right
+    root.right.right = right_right
+
+    codec = Codec()
+    serialized = codec.serialize(root)
+    print(serialized)
+    deserialized = codec.deserialize(serialized)
+    print(codec.serialize(deserialized))
 
 
 # Your Codec object will be instantiated and called as such:
