@@ -1,79 +1,126 @@
-from os import system
-from typing import List, Tuple
+from __future__ import annotations
 
-def blit(content: str) -> None:
-    system('clear')
-    print(content, end='')
+from typing import List, Dict, Tuple
 
-class Shape:
-    def __init__(self, grid: List[List[int]]):
-        # shapes are defined within an X by Y grid, rotated around the center coord on that grid
-        self.width = grid[0]
-        self.height = grid[1]
-        self.__x = 0
-        self.__y = 0
-        self.__center_x = self.width // 2
-        self.__center_y = self.height // 2
-        self.__grid: List[List[int]] = grid
 
-    def rotate(self) -> None:
-        for coord in self.__grid:
-            centered_coord = [coord[0] - self.__center_x, coord[1] - self.__center_y]
-            centered_coord[0], centered_coord[1] = centered_coord[1], -centered_coord[0]
-            coord[0] = centered_coord[0] + self.__center_x
-            coord[1] = centered_coord[1] + self.__center_y
-
-    def move(self, dir_: Tuple[int, int]) -> None:
-        self.__x += dir_[0]
-        self.__y += dir_[1]
+class Piece:
+    def __init__(self, x:int, y:int, shape: List[List[int]]):
+        self.__x: int = x
+        self.__y: int = y
+        self.__shape: List[List[int]] = shape
 
     @property
-    def in_world(self) -> List[List[int]]:
+    def x(self) -> int:
+        return self.__x
+    
+    @property
+    def y(self) -> int:
+        return self.__y
+    
+    @property
+    def shape(self) -> List[List[int]]:
+        return [[col for col in row] for row in self.__shape]
+    
+    @property
+    def xlen(self) -> int:
+        return len(self.__shape[0])
+    
+    @property
+    def ylen(self) -> int:
+        return len(self.__shape)
+
+    def rotate(self, left=False) -> None:
+        self.__shape = list(zip(*self.__shape))
+        if not left:
+            for row in self.__shape:
+                row.reverse()
+        else:
+            for col in range(len(self.__shape[0])):
+                for row in range(len(self.__shape)//2):
+                    self.__shape[row][col], self.__shape[-(row + 1)][col] = self.__shape[-(row + 1)][col], self.__shape[row][col]
+    
+    def move(self, dir: str) -> None:
+        if dir == "l":
+            self.__x -= 1
+        elif dir == "r":
+            self.__x += 1
+        elif dir == "u":
+            self.__y -= 1
+        else:
+            self.__y += 1
+
+
+class TetrisGame:
+
+    __tetris_pieces = [
+        [
+            [0,1,0],
+            [0,1,0],
+            [0,1,1]
+        ],
+        [
+            [1,0],
+            [1,1],
+            [0,1]
+        ]
+    ]
+
+    def __init__(self, width: int, height: int):
+        self.__score: int = 0
+        self.__width = width
+        self.__height = height
+        self.__grid: List[List[int]] = [[0] * width for _ in range(height)]
+        self.__active_piece: None | Piece = None
+
+    def __can_move(self, direction: str) -> bool:
+        if self.__active_piece is None:
+            return False
+        # return true if moving the shape in some direction will cause it to stop
+        # false otherwise
+        move_loc = [self.__active_piece.x, self.__active_piece.y]
+        if direction == "l":
+            move_loc[0] -= 1
+        elif direction == "r":
+            move_loc[0] += 1
+        elif direction == "u":
+            move_loc[1] -= 1
+        else:
+            move_loc[1] += 1
+
+        # loop through all of the new piece locations
+        # check if it intersects with something placed on the grid
+        shape = self.__active_piece.shape
+        xlen = self.__active_piece.xlen
+        ylen = self.__active_piece.ylen
+        for row_i in range(ylen):
+            for col_i in range(xlen):
+                if shape[row_i][col_i] == 1:
+                    grid_spot = (self.__active_piece.x + row_i, self.__active_piece.y + col_i)
+                    if self.__grid[grid_spot[1]][grid_spot[0]] == 1:
+                        # intersection
+                        return False
+        return True
+
+
+    def __place_active_piece(self) -> None:
+        # writes the active piece to the grid
+        shape = self.__active_piece.shape
+        for row_i in range(self.__active_piece.ylen):
+            for col_i in range(self.__active_piece.xlen):
+                if shape[row_i][col_i] == 1:
+                    
+                    self.__grid[]
+
+    def __spawn_piece(self) -> None:
+        # pick a random piece and spawn in
         pass
 
+    def __can_clear_row(self) -> None:
+        pass
 
-class Tetris:
-    def __init__(self, rows: int, cols: int):
-        self.__grid: List[List[int]] = [[0] * cols for _ in range(rows)]
-        self.__active_shape: Shape | None = None
-
-    def spawn_shape(self) -> None:
-        if self.__active_shape is not None:
-            return
-        self.__active_shape = Shape([
-            [0, 1, 0],
-            [0, 1, 0],
-            [1, 1, 0]
-        ])
-        self.__active_shape.move((2,0))
-
-    def step(self):
-        if self.__active_shape is not None:
-            self.__active_shape.move((0,1))
-            self.__active_shape.rotate()
-
-    def __str__(self) -> str:
-        if self.__active_shape is not None:
-            for coord in self.__active_shape.structure:
-                self.__grid[coord[1]][coord[0]] = 1
-
-        output = ""
-        for row in self.__grid:
-            for data in row:
-                output += str(data)
-            output += "\n"
-
-        if self.__active_shape is not None:
-            for coord in self.__active_shape.structure:
-                self.__grid[coord[1]][coord[0]] = 0
-
-        return output
-
-if __name__ == "__main__":
-    tetris = Tetris(10,6)
-    tetris.spawn_shape()
-    while True:
-        input()
-        blit(str(tetris))
-
-        tetris.step()
+    
+    def tick() -> None:
+        # try to move the piece down (gravity)
+        # if we cant, stop it by writing it to the grid location, and spawn a new piece
+        # at this point also check for loss (the top of the piece == 0)
+        pass
