@@ -6,7 +6,38 @@ class Calculator:
     def __init__(self):
         self.__answer: int = 0
 
-    def __evaluate(self, tokens: List[str]) -> int:
+    @classmethod
+    def __operate(cls, operator, op1, op2) -> int:
+        if operator == "+":
+            return op1 + op2
+        elif operator == "-":
+            return op1 - op2
+        elif operator == "*":
+            return op1 * op2
+        elif operator == "/":
+            return op1//op2
+        else:
+            raise Exception()
+    
+    
+    @classmethod
+    def __evaluate_operations_on_stack(cls, stack: List[str|int], operators: List[str]) -> List[str|int]:
+        i = 0
+        expr_evaluated = []
+        while i < len(stack):
+            if stack[i] in operators:
+                operator = stack[i]
+                left = expr_evaluated[-1]
+                right = stack[i + 1]
+                expr_evaluated[-1] = Calculator.__operate(operator, left, right)
+                i += 2
+            else:
+                expr_evaluated.append(stack[i])
+                i += 1
+        return expr_evaluated
+
+    @classmethod
+    def __evaluate(cls, tokens: List[str|int]) -> int:
         
         # + - * / ( ) num
         # - num
@@ -21,67 +52,60 @@ class Calculator:
         while i < len(tokens):
             if tokens[i] == "(":
                 counter = 1
+                end_i = i
                 for j in range(i + 1, len(tokens)):
                     if tokens[j] == "(":
                         counter += 1
                     elif tokens[j] == ")":
                         counter -= 1
                     
+                    end_i = j
                     if counter == 0:
-                        i = j + 1
                         break
-                evaluated_parenthesis = str(self.__evaluate(tokens[i:j]))
+                evaluated_parenthesis = Calculator.__evaluate(tokens[i+1:end_i])
                 expr.append(evaluated_parenthesis)
+                i = end_i + 1
             else:
                 expr.append(tokens[i])
                 i += 1
 
-        # evaluate mult/div operations, assuming theres no parenthesis
-        # 1 * 1 * 1
-        # 1
-        i = 0
-        expr_no_multdiv = []
-        while i < len(expr):
-            if expr[i] == "*" or expr[i] == "/":
-                left = expr_no_multdiv[-1]
-                right = expr[i + 1]
-                result = 1
-                if expr[i] == "*":
-                    result = int(left) * int(right)
-                else:
-                    result = int(left) // int(right)
-                expr_no_multdiv[-1] = result
-                i += 2
-            else:
-                expr_no_multdiv.append(expr[i])
-                i += 1
-
-        i = 0
-        expr_evaluated = []
-        while i < len(expr_no_multdiv):
-            if expr_no_multdiv[i] == "+" or expr_no_multdiv[i] == "-":
-                left = expr_evaluated[-1]
-                right = expr[i + 1]
-                result = 1
-                if expr_no_multdiv[i] == "+":
-                    result = int(left) + int(right)
-                else:
-                    result = int(left) - int(right)
-                expr_evaluated[-1] = result
-                i += 2
-            else:
-                expr_evaluated.append(expr_no_multdiv[i])
-                i += 1
-        
-
-        return expr_evaluated[0]
+        mult_div_evaluated = Calculator.__evaluate_operations_on_stack(expr, ["*", "/"])
+        add_sub_evaluated = Calculator.__evaluate_operations_on_stack(mult_div_evaluated, ["+", "-"])
+        return int(add_sub_evaluated[0])
     
+    @classmethod
+    def __parse(cls, expression: str) -> List[str|int]:
+        # parse without checking validity
+        tokens: List[str|int] = []
+        cur_token: str = ""
+        for ch in expression:
+            if ch in "0123456789":
+                cur_token += ch
+            elif ch in "+-*/":
+                if len(cur_token):
+                    tokens.append(int(cur_token))
+                    cur_token = ""
+                tokens.append(ch)
+            elif ch in "()":
+                if len(cur_token):
+                    tokens.append(int(cur_token))
+                    cur_token = ""
+                tokens.append(ch)     
+        if len(cur_token):
+            tokens.append(int(cur_token))
+        return tokens
 
-    def __parse(self, expression: str) -> List[str]:
-        pass
 
 
     def calculate(self, expression: str) -> int:
         
-        self.__answer = self.__evaluate(self.__parse(expression))
+        self.__answer = Calculator.__evaluate(Calculator.__parse(expression))
         return self.__answer
+
+
+if __name__ == "__main__":
+
+    calc = Calculator()
+    while True:
+        print(calc.calculate(input("Enter expression: ")))
+
