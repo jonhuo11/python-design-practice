@@ -42,10 +42,14 @@ class InMemoryDB:
 
     # ---------- Level 2 ----------
     def scan(self, key: str) -> list[str]:
-        raise NotImplementedError
+        if key not in self.db:
+            return []
+        return [f"{field}({value})" for field, value in self.db[key]]
 
     def scan_by_prefix(self, key: str, prefix: str) -> list[str]:
-        raise NotImplementedError
+        if key not in self.db:
+            return []
+        return [f"{field}({value})" for field, value in self.db[key] if field.startswith(prefix)]
 
     # ---------- Level 3 ----------
     def set_at(self, timestamp: int, key: str, field: str, value: str) -> None:
