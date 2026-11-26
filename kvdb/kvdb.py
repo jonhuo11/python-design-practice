@@ -2,20 +2,43 @@
 
 from __future__ import annotations
 
+import bisect
 
 class InMemoryDB:
     def __init__(self) -> None:
-        pass
+        self.db: dict[str, list[list[str,str]]] = {}
+        # invariants
+        # no key has len 0 - we always delete keys with len 0 on the last field removal
+
 
     # ---------- Level 1 ----------
     def set(self, key: str, field: str, value: str) -> None:
-        raise NotImplementedError
+        if key not in self.db:
+            self.db[key] = []
+        insert_i = bisect.bisect_left(self.db[key], [field,])
+        if insert_i < len(self.db[key]) and self.db[key][insert_i][0] == field: # update the val in place
+            self.db[key][insert_i][1] = value
+        else: # not already there
+            self.db[key].insert(insert_i, [field, value])
+        #print(self.db[key])
 
     def get(self, key: str, field: str) -> str | None:
-        raise NotImplementedError
+        if key not in self.db:
+            return None
+        i = bisect.bisect_left(self.db[key], [field,])
+        return self.db[key][i][1] if (i < len(self.db[key]) and self.db[key][i][0] == field) else None
+
 
     def delete(self, key: str, field: str) -> bool:
-        raise NotImplementedError
+        if key not in self.db:
+            return False
+        i = bisect.bisect_left(self.db[key], [field,])
+        if i < len(self.db[key]) and self.db[key][i][0] == field:
+            self.db[key].pop(i)
+            if len(self.db[key]) == 0:
+                del self.db[key] # empty key gets removed
+            return True
+        return False
 
     # ---------- Level 2 ----------
     def scan(self, key: str) -> list[str]:
