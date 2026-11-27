@@ -34,6 +34,10 @@ class CADEntry:
     key: str
     field: str
     expected_val: str
+
+@dataclass
+class WipeEntry:
+    t: int
     
 
 class InMemoryDB:
@@ -41,7 +45,9 @@ class InMemoryDB:
         self.db: dict[str, list[list[str,str,int]]] = {} # (field, value, ttlu)
         # invariants
         # no key has len 0 - we always delete keys with len 0 on the last field removal
-        self.log: list[SetEntry|DelEntry|CASEntry] = []
+        self.log: list[SetEntry|DelEntry|CASEntry|CADEntry|WipeEntry] = []
+
+        self.backups: list[int] = [] # times when backups happened
 
 
     # ---------- Level 1 ----------
@@ -154,10 +160,58 @@ class InMemoryDB:
 
     # ---------- Level 4 ----------
     def backup(self, timestamp: int) -> int:
-        raise NotImplementedError
+        self.backups.append(timestamp)
 
-    def restore(self, timestamp: int, timestamp_to_restore: int) -> bool:
-        raise NotImplementedError
+        n_with_one_field = 0
+        for k in self.db:
+            for _, _, ttlu in self.db[k]:
+                if timestamp < ttlu:
+                    n_with_one_field += 1
+                    break # this key has at least 1 field
+        return n_with_one_field
+
+    def __replay(self, action_time: int, target_timestamp: int): # inclusive
+        sim_db = InMemoryDB()
+
+        # play until state
+        l = []
+        for log_entry in self.log:
+            if log_entry.t > target_timestamp:
+                break # stop
+            l.append(log_entry)
+            if isinstance(log_entry, SetEntry):
+                sim_db.set_at_with_ttl(log_entry.t, log_entry.key, log_entry.field, log_entry.value, log_entry.ttl)
+            elif isinstance(log_entry, DelEntry):
+                sim_db.delete_at(log_entry.t, log_entry.key, log_entry.field)
+            elif isinstance(log_entry, CASEntry):
+                sim_db.compare_and_set_at(log_entry.t, log_entry.key, log_entry.field, log_entry.expected_val, log_entry.new_val)
+            elif isinstance(log_entry, CADEntry):
+                sim_db.compare_and_delete_at(log_entry.t, log_entry.key, log_entry.field, log_entry.expected_val)
+            elif isinstance(log_entry, WipeEntry):
+                sim_db.log.append(WipeEntry(log_entry.t))
+                sim_db.db = {}
+        print(l)
+        print(sim_db.db)
+
+        # copy state into current
+        self.db = {} # wipe, but dont wipe logs
+        self.log.append(WipeEntry(action_time))
+        for k in sim_db.db:
+            for field, value, ttlu in sim_db.db[k]:
+                if target_timestamp >= ttlu:
+                    continue # expired
+                self.set(k, field, value, action_time + ttlu - target_timestamp)
+                #print(action_time, ttlu, target_timestamp, action_time + ttlu - target_timestamp)
+                self.log.append(SetEntry(action_time, k, field, value, ttlu - target_timestamp))
+        
+
+    def restore(self, timestamp: int, timestamp_to_restore: int) -> bool: # no restore log entry type exists, just sets
+        backup_i = bisect.bisect_right(self.backups, timestamp_to_restore)
+        print(self.backups, backup_i)
+        if backup_i > len(self.backups) or backup_i <= 0: # out of band
+            return False
+        self.__replay(timestamp, self.backups[backup_i-1])
+        return True
 
     # ---------- Level 5 (stretch) ----------
     def get_when(self, timestamp: int, key: str, field: str, at_timestamp: int) -> str | None:
