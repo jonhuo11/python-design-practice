@@ -92,7 +92,7 @@ class InMemoryDB:
     def scan(self, key: str, t: int | None = None) -> list[str]:
         if key not in self.db:
             return []
-        return [f"{field}({value})" for field, value, ttlu in self.db[key] if t < ttlu]
+        return [f"{field}({value})" for field, value, ttlu in self.db[key] if t is None or t < ttlu]
 
     def scan_by_prefix(self, key: str, prefix: str, t: int | None = None) -> list[str]:
         if key not in self.db:
@@ -111,7 +111,7 @@ class InMemoryDB:
         return v
 
     def get_at(self, timestamp: int, key: str, field: str) -> str | None:
-        print(self.db)
+        #print(self.db)
         return self.get(key, field, timestamp)
 
     def delete_at(self, timestamp: int, key: str, field: str) -> bool:
@@ -138,9 +138,7 @@ class InMemoryDB:
                 self.db[key][insert_i][1] = new_value
                 return True
             return False # failed CAS or ttl
-        else: # not already there
-            self.db[key].insert(insert_i, [field, new_value, math.inf])
-            return True
+        return False # field not there
 
     def compare_and_delete_at(self, timestamp: int, key: str, field: str,
                               expected_value: str) -> bool:
@@ -152,7 +150,7 @@ class InMemoryDB:
             val = self.db[key][rm_i][1]
             ttlu = self.db[key][rm_i][2]
             if timestamp < ttlu and val == expected_value: # has not expired + CAS
-                self.db[key][rm_i].pop(rm_i)
+                self.db[key].pop(rm_i)
                 return True
             return False # failed CAS or ttl
         return False
@@ -190,8 +188,8 @@ class InMemoryDB:
             elif isinstance(log_entry, WipeEntry):
                 sim_db.log.append(WipeEntry(log_entry.t))
                 sim_db.db = {}
-        print(l)
-        print(sim_db.db)
+        #print(l)
+        #print(sim_db.db)
 
         # copy state into current
         self.db = {} # wipe, but dont wipe logs
@@ -207,7 +205,7 @@ class InMemoryDB:
 
     def restore(self, timestamp: int, timestamp_to_restore: int) -> bool: # no restore log entry type exists, just sets
         backup_i = bisect.bisect_right(self.backups, timestamp_to_restore)
-        print(self.backups, backup_i)
+        #print(self.backups, backup_i)
         if backup_i > len(self.backups) or backup_i <= 0: # out of band
             return False
         self.__replay(timestamp, self.backups[backup_i-1])
